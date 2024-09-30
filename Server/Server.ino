@@ -24,25 +24,30 @@
 #include <BLEUtils.h>
 #include <BLE2902.h>
 
-BLEServer* pServer = NULL;
-BLECharacteristic* pCharacteristic = NULL;
+BLEServer* server = NULL;
+BLECharacteristic* thresholdCharacteristic = NULL;
+BLECharacteristic* phValueCharacteristic = NULL;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
-uint32_t value = 0;
+
+
+uint32_t txData = 0;
+double currentThresoldValue = 1.23;
+double oldThresholdValue = 0;
 
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
 
-#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
-
+#define SERVICE_UUID                  "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_THRESHOLD_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define CHARACTERISTIC_PH_VALUE_UUID  "769b1d37-1c34-49bf-84b8-459759bbf211"
 
 class MyServerCallbacks: public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) {
+    void onConnect(BLEServer* server) {
       deviceConnected = true;
     };
 
-    void onDisconnect(BLEServer* pServer) {
+    void onDisconnect(BLEServer* server) {
       deviceConnected = false;
     }
 };
@@ -56,15 +61,22 @@ void setup() {
   BLEDevice::init("ESP32");
 
   // Create the BLE Server
-  pServer = BLEDevice::createServer();
-  pServer->setCallbacks(new MyServerCallbacks());
+  server = BLEDevice::createServer();
+  server->setCallbacks(new MyServerCallbacks());
 
   // Create the BLE Service
-  BLEService *pService = pServer->createService(SERVICE_UUID);
+  BLEService *service = server->createService(SERVICE_UUID);
 
-  // Create a BLE Characteristic
-  pCharacteristic = pService->createCharacteristic(
-                      CHARACTERISTIC_UUID,
+  // Create a BLE Characteristics
+  thresholdCharacteristic = service->createCharacteristic(
+                      CHARACTERISTIC_THRESHOLD_UUID,
+                      BLECharacteristic::PROPERTY_READ   |
+                      BLECharacteristic::PROPERTY_WRITE  |
+                      BLECharacteristic::PROPERTY_NOTIFY |
+                      BLECharacteristic::PROPERTY_INDICATE
+                    );
+  phValueCharacteristic = service->createCharacteristic(
+                      CHARACTERISTIC_PH_VALUE_UUID,
                       BLECharacteristic::PROPERTY_READ   |
                       BLECharacteristic::PROPERTY_WRITE  |
                       BLECharacteristic::PROPERTY_NOTIFY |
@@ -75,10 +87,11 @@ void setup() {
   // Create a BLE Descriptor
   BLE2902* pBLE2902 = new BLE2902();
   pBLE2902->setNotifications(true);
-  pCharacteristic->addDescriptor(pBLE2902);
-
+  thresholdCharacteristic->addDescriptor(pBLE2902);
+  phValueCharacteristic->addDescriptor(pBLE2902);
+  
   // Start the service
-  pService->start();
+  service->start();
 
   // Start advertising
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
@@ -90,20 +103,34 @@ void setup() {
 }
 
 void loop() {
-    // notify changed value
-    if (deviceConnected) {
-        pCharacteristic->setValue(value);
-        pCharacteristic->notify();
-        value++;
-        delay(1000); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
+    if(Serial.available()){
+      String serialInput = Serial.readString();
+      currentThresoldValue = serialInput.toDouble();
     }
+    
+    // notify changed value
+    if (deviceConnected) 
+    {
+        if(oldThresholdValue != currentThresoldValue)
+        {
+          txData = currentThresoldValue * 100;
+          thresholdCharacteristic->setValue(txData);
+          Serial.print("Threshold Value is set to: ");
+          Serial.println(currentThresoldValue);
+          thresholdCharacteristic->notify();
+          delay(1000);
+          oldThresholdValue = currentThresoldValue;
+        }
+    }
+
     // disconnecting
     if (!deviceConnected && oldDeviceConnected) {
         delay(500); // give the bluetooth stack the chance to get things ready
-        pServer->startAdvertising(); // restart advertising
+        server->startAdvertising(); // restart advertising
         Serial.println("start advertising");
         oldDeviceConnected = deviceConnected;
     }
+
     // connecting
     if (deviceConnected && !oldDeviceConnected) {
         // do stuff here on connecting
