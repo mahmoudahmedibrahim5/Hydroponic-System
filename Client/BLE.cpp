@@ -1,3 +1,4 @@
+#include <string>
 #include <Arduino.h>
 #include "BLE.hpp"
 
@@ -13,6 +14,7 @@ extern boolean doScan;
 
 /* PH Threshold Variables */
 extern double thresoldValue;
+extern double phValue;
 
 /******************************************* Callback Functions *******************************************/
 void notifyThresholdCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) 
@@ -94,7 +96,7 @@ void BLE_voidInit(void)
   // doConnect = false;
 }
 
-bool BLE_voidConnectToServer(void) 
+bool BLE_boolConnectToServer(void) 
 {
     Serial.print("Forming a connection to ");
     Serial.println(myDevice->getAddress().toString().c_str());
@@ -144,4 +146,11 @@ bool BLE_voidConnectToServer(void)
 
     connected = true;
     return true;
+}
+
+void BLE_voidRunnung(void)
+{
+  String tx = String(phValue);
+  phValueCharacteristic->writeValue(tx.c_str(), tx.length());
+  delay(1000);
 }

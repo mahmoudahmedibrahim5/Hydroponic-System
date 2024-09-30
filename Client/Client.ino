@@ -17,6 +17,8 @@
 */
 
 #include "BLE.hpp"
+#include "PH_Sensor.hpp"
+#include "Pump.hpp"
 
 /* Connection variables */
 boolean doConnect = false; // This flag is on when the scan find the desired BLE server
@@ -25,19 +27,30 @@ boolean doScan = false;
 
 /* PH Threshold Variables */
 double thresoldValue = 7.0;
+double phValue = 0;
 
 void setup() 
 {
   Serial.begin(115200);
   BLE_voidInit();  
+  PH_voidInit();
+  PUMP_voidInit();
 } 
 
 void loop() 
 {
+  /* Reading PH Sensor */
+  phValue = PH_doubleRead();
+
+  if(phValue > thresoldValue)
+    PUMP_voidSetSpeed(500);
+  else
+    PUMP_voidSetSpeed(0);
+
   /* We have scanned for and found the desired BLE Server */
   if (doConnect == true) 
   {
-    if (BLE_voidConnectToServer()) 
+    if (BLE_boolConnectToServer()) 
       Serial.println("We are now connected to the BLE Server.");
     else 
       Serial.println("We have failed to connect to the server; there is nothin more we will do.");
@@ -47,7 +60,7 @@ void loop()
   /* If we are connected to a peer BLE Server */
   if (connected) 
   {
-
+    BLE_voidRunnung();
   }
   else if(doScan)
   {

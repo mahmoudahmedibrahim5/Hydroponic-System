@@ -106,4 +106,9 @@ void BLE_voidRunning(void)
     // Update the old value
     oldThresholdValue = currentThresoldValue;
   }
+
+  std::string rxData = phValueCharacteristic->getValue();
+  Serial.print("Received Data: ");
+  Serial.println(rxData.c_str());
+  delay(1000);
 }
